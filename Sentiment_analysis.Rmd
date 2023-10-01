@@ -1,0 +1,133 @@
+---
+title: "Sentiment Analysis"
+author: "Saisampath Adusumilli"
+date: '2023-10-01'
+output: 
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning = FALSE,message = FALSE)
+```
+
+<h2 style="color: rgb(0, 113, 197);">
+
+**Introduction**
+
+</h2>
+
+The aim of this project is to build a sentiment analysis model which will allow us to categorize words based on their sentiments, that is whether they are positive, negative and also the magnitude of it. We will make use of the tiny text package to analyze the data and provide scores to the corresponding words that are present in the data set.
+
+<h2 style="color: rgb(0, 113, 197);">
+
+**Q. What is Sentiment Analysis**
+
+</h2>
+
+Sentiment Analysis is a process of extracting opinions that have different polarities. By polarities, we mean positive, negative or neutral. With the help of sentiment analysis, you can find out the nature of opinion that is reflected in documents, websites, social media feed, etc. Sentiment Analysis is a type of classification where the data is classified into different classes. These classes can be binary in nature (positive or negative) or, they can have multiple classes (happy, sad, angry, etc.).
+
+<h2 style="color: rgb(0, 113, 197);">
+
+**Developing our Sentiment Analysis Model**
+
+</h2>
+
+The data set that we will use for this project will be provided by the R package ‘janeaustenR’. In order to build our project on sentiment analysis, we will make use of the tidytext package that comprises of sentiment lexicons that are present in the dataset of ‘sentiments’. We will be using the bing lexicon model which classifies the sentiment into a binary category of negative or positive.
+
+```{r}
+#install.packages('tibble')
+library(janeaustenr)
+library(stringr)
+library(tidytext)
+library(dplyr)
+
+tidy_data <- austen_books() |>
+ group_by(book) |>
+ mutate(linenumber = row_number(),
+   chapter = cumsum(str_detect(text, regex("^chapter [\\divxlc]", 
+                          ignore_case = TRUE)))) %>%
+ungroup() |>
+unnest_tokens(word, text)
+```
+
+We have performed the tidy operation on our text such that each row contains a single word. We will now make use of the “bing” lexicon to and implement filter() over the words that correspond to joy. We will use the book Sense and Sensibility and derive its words to implement out sentiment analysis model.
+
+```{r}
+positive_senti <- get_sentiments("bing") |>
+ filter(sentiment == "positive")
+
+tidy_data |>
+ filter(book == "Emma") |>
+ semi_join(positive_senti) |>
+ count(word, sort = TRUE)
+```
+
+From our above result, we observe many positive words like “good”, “happy”, “love” etc. In the next step, we will use spread() function to segregate our data into separate columns of positive and negative sentiments. We will then use the mutate() function to calculate the total sentiment, that is, the difference between positive and negative sentiment.
+
+```{r}
+library(tidyr)
+bing <- get_sentiments("bing")
+Emma_sentiment <- tidy_data |>
+ inner_join(bing) |>
+ count(book = "Emma" , index = linenumber %/% 80, sentiment) |>
+ spread(sentiment, n, fill = 0) |>
+ mutate(sentiment = positive - negative)
+```
+
+In the next step, we will visualize the words present in the book “Emma” based on their corrosponding positive and negative scores.
+```{r}
+library(ggplot2)
+
+ggplot(Emma_sentiment, aes(index, sentiment, fill = book)) +
+ geom_bar(stat = "identity", show.legend = TRUE) +
+ facet_wrap(~book, ncol = 2, scales = "free_x")
+```
+
+Let us now proceed towards counting the most common positive and negative words that are present in the novel.
+
+```{r}
+counting_words <- tidy_data |>
+ inner_join(bing) |>
+ count(word, sentiment, sort = TRUE)
+head(counting_words)
+```
+
+In the next step, we will perform visualization of our sentiment score. We will plot the scores along the axis that is labeled with both positive as well as negative words. We will use ggplot() function to visualize our data based on their scores.
+
+```{r}
+counting_words |>
+ filter(n > 150) |>
+ mutate(n = ifelse(sentiment == "negative", -n, n)) |>
+ mutate(word = reorder(word, n)) |>
+ ggplot(aes(word, n, fill = sentiment))+
+ geom_col() +
+ coord_flip() +
+ labs(y = "Sentiment Score")
+```
+
+In the final visualization, let us create a wordcloud that will delineate the most recurring positive and negative words. In particular, we will use the comparision.cloud() function to plot both negative and positive words in a single wordcloud as follows:
+
+```{r}
+#install.packages("wordcloud")
+library(reshape2)
+library(wordcloud)
+tidy_data |>
+ inner_join(bing) |>
+ count(word, sentiment, sort = TRUE) |>
+ acast(word ~ sentiment, value.var = "n", fill = 0) |>
+ comparison.cloud(colors = c("red", "dark green"),
+          max.words = 100)
+```
+
+This word cloud will enable us to efficiently visualize the negative as well as positive groups of data. Therefore, we are now able to see the different groups of data based on their corresponding sentiments.
+
+<h2 style="color: rgb(0, 113, 197);">
+
+**Summary**
+
+</h2>
+
+We implemented sentiment analysis on the data set of Jane Austen’s books. We were able to delineate it through various visualizations after we performed data wrangling on our data and also used a lexical analyzer – ‘bing’. Furthermore, we also represented the sentiment score through a plot and also made a visual report of wordcloud.
